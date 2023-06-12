@@ -1,0 +1,112 @@
+name: "Publish Crates"
+
+on:
+  push:
+    branches:
+      - "infra/publish-crates-action"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  RUSTFLAGS: "-Dwarnings"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: "Publish release"
+    runs-on:
+      labels: ubuntu-latest-4-cores
+      group: ubuntu-xl-runners
+    container: ubuntu:latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags
+
+      - name: Set up cargo cache
+        uses: actions/cache@v3
+        timeout-minutes: 5
+        continue-on-error: false
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install latest stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Install jq & sponge
+        run: sudo apt-get update && sudo apt-get --yes --force-yes install jq moreutils
+
+      - name: Install cargo-show cargo-workspaces toml-cli
+        run: cargo install cargo-show cargo-workspaces toml-cli || true
+
+      - name: What's changed?
+        run: |
+          git tag -l
+          cargo ws changed 2>&1
+
+      - name: Set crate versions to match crates.io
+        run: |
+          # install semver and add it to PATH
+          yarn global add semver
+          PATH="$(yarn global bin):$PATH"
+
+          set -x
+          RELEASE_DESCRIPTION=""
+
+          for CRATE_NAME in $(cargo ws changed)
+          do
+            CRATE_VERSION="$((cargo show --json "$CRATE_NAME" | jq -r .crate.max_version) 2>/dev/null || true)"
+            NEXT_CRATE_VERSION="$(semver --increment patch "${CRATE_VERSION}" || true)"
+            CARGO_TOML="$(cargo ws changed --json | jq -er ".[] | select(.name == \"$CRATE_NAME\") | .location")""/Cargo.toml"
+            LOCAL_VERSION="$(toml get "$CARGO_TOML" package.version | tr -d \")"
+            MAX_VERSION="$(semver "$NEXT_CRATE_VERSION" "$LOCAL_VERSION" | tail -n1)"
+
+            toml set "$CARGO_TOML" package.version "$MAX_VERSION" | sponge "$CARGO_TOML"
+
+            # Generate description
+            LINK="https://crates.io/crates/$CRATE_NAME/$MAX_VERSION"
+            TEXT="**crate:** $CRATE_NAME `$MAX_VERSION`"
+            ITEM="${TEXT}\n[${LINK}](${LINK})"
+            RELEASE_DESCRIPTION="${RELEASE_DESCRIPTION}\n${ITEM}\n"
+          done
+          RELEASE_DESCRIPTION="<h2>crates.io:</h2><ul>$RELEASE_DESCRIPTION</ul>"
+          echo "RELEASE_DESCRIPTION=$RELEASE_DESCRIPTION" | tee -a $GITHUB_ENV
+
+      - name: Login to crates.io
+        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: Publish to crates.io
+        run: cargo ws publish --no-git-commit --allow-dirty --yes --skip-published patch
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: web3mine compute shared ${{ github.run_number }}
+          tag_name: ${{ github.run_number }}
+          body: |
+            ${{ env.RELEASE_DESCRIPTION }}
+          draft: true
+          prerelease: false
