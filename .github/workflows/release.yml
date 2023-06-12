@@ -23,7 +23,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - run: apt-get update && apt-get install -y build-essential pkg-config curl git jq moreutils
+      - run: apt-get update && apt-get install -y build-essential pkg-config curl git openssl libssl-dev jq moreutils
 
       - name: Checkout repository
         uses: actions/checkout@v3
