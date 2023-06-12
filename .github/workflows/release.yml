@@ -60,6 +60,11 @@ jobs:
           git tag -l
           cargo ws changed 2>&1
 
+      - name: Set Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
       - name: Set crate versions to match crates.io
         run: |
           # install semver and add it to PATH
