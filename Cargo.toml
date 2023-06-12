@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "job",
+    "filecoin_spec",
+    "job_client",
+]
