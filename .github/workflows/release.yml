@@ -23,6 +23,8 @@ jobs:
       run:
         shell: bash
     steps:
+      - run: apt-get update && apt-get install -y curl git jq moreutils
+
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
@@ -50,9 +52,6 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-
-      - name: Install jq & sponge
-        run: sudo apt-get update && sudo apt-get --yes --force-yes install jq moreutils
 
       - name: Install cargo-show cargo-workspaces toml-cli
         run: cargo install cargo-show cargo-workspaces toml-cli || true
