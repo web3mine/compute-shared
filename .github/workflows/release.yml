@@ -17,9 +17,7 @@ permissions:
 jobs:
   publish:
     name: "Publish release"
-    runs-on:
-      labels: ubuntu-latest-4-cores
-      group: ubuntu-xl-runners
+    runs-on: ubuntu-latest
     container: ubuntu:latest
     defaults:
       run:
