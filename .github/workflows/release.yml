@@ -88,7 +88,7 @@ jobs:
 
             # Generate description
             LINK="https://crates.io/crates/$CRATE_NAME/$MAX_VERSION"
-            TEXT="**crate:** $CRATE_NAME `$MAX_VERSION`"
+            TEXT="**crate:** $CRATE_NAME \`$MAX_VERSION\`"
             ITEM="${TEXT}\n[${LINK}](${LINK})"
             RELEASE_DESCRIPTION="${RELEASE_DESCRIPTION}\n${ITEM}\n"
           done
