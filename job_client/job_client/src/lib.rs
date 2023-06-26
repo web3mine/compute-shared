@@ -30,6 +30,9 @@ pub enum Error {
     #[error("{0}")]
     Reqwest(#[from] reqwest::Error),
 
+    #[error("Not enough jobs({0})")]
+    NotEnoughJobs(usize),
+
     #[error("Error while fetching jobs: {0}")]
     FetchJobs(String),
 
@@ -346,6 +349,11 @@ impl SealingJobManagerClient for SealingJobManagerHttpClient {
             .send()
             .await?;
 
+        if response.status() == StatusCode::NO_CONTENT {
+            tracing::error!("{} jobs not available", count);
+            return Err(Error::NotEnoughJobs(count));
+        }
+
         if response.status() != StatusCode::OK {
             let resp = response.text().await?;
             tracing::error!("Error while fetching jobs: {}", &resp);
@@ -353,7 +361,7 @@ impl SealingJobManagerClient for SealingJobManagerHttpClient {
         }
 
         let response: GetSealingJobsResponse = response.json().await?;
-        tracing::debug!("request_jobs response {:?}", response);
+        tracing::trace!("request_jobs response {:?}", response);
 
         let jobs: Vec<SealingJobT> = response.jobs.into_iter().map(|job| job.into()).collect();
         Ok(jobs)
@@ -398,7 +406,7 @@ impl SealingJobManagerClient for SealingJobManagerHttpClient {
         }
 
         let input: JobHttp = response.json().await?;
-        tracing::debug!("job_input response {:?}", input);
+        tracing::trace!("job_input response {:?}", input);
 
         let input: SealingJobT = input.into();
         Ok(Some(input))
@@ -495,7 +503,7 @@ impl SealingJobManagerClient for SealingJobManagerHttpClient {
         }
 
         let output: JobOutputHttp = response.json().await?;
-        tracing::debug!("request_jobs response {:?}", output);
+        tracing::trace!("request_jobs response {:?}", output);
 
         let output: SealingJobT::Output = output.into();
         Ok(Some(JobOutput(Ok(output))))
