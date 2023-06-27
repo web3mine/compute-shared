@@ -14,6 +14,7 @@ pub const ADD_JOBS_URL: &str = "/job";
 pub const GET_JOBS_URL: &str = "/job/:count/:job_type";
 pub const GET_ALL_JOBS_URL: &str = "/job/all/:storage_provider_id/:job_type";
 pub const GET_JOB_INPUT_URI: &str = "/job/input/:storage_provider_id/:sector_id/:job_type";
+pub const GET_JOB_STATE_URL: &str = "/job/state/:storage_provider_id/:sector_id/:job_type";
 
 pub const SUBMIT_OUTPUT_URL: &str = "/job/output";
 pub const GET_OUTPUT_URL: &str = "/job/output/:storage_provider_id/:sector_id/:job_type";
@@ -30,6 +31,9 @@ pub enum Error {
     #[error("{0}")]
     Reqwest(#[from] reqwest::Error),
 
+    #[error("Job doesn't exist")]
+    JobNotExist,
+
     #[error("Not enough jobs({0})")]
     NotEnoughJobs(usize),
 
@@ -44,6 +48,9 @@ pub enum Error {
 
     #[error("Error while submitting job failure: {0}")]
     FailJob(String),
+
+    #[error("Error while fetching job state: {0}")]
+    GetState(String),
 }
 
 pub struct JobOutput<SealingJobT: SealingJob>(pub Result<SealingJobT::Output, String>);
@@ -231,6 +238,13 @@ pub struct FailJob {
     pub error: String,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub enum JobState {
+    Pending,
+    Done,
+    Failed,
+}
+
 #[automock]
 #[async_trait]
 pub trait SealingJobManagerClient {
@@ -275,6 +289,12 @@ pub trait SealingJobManagerClient {
         sector_id: SectorId,
         error: &str,
     ) -> Result<(), Error>;
+
+    async fn get_job_state<SealingJobT: SealingJob + 'static>(
+        &self,
+        storage_provider_id: StorageProviderId,
+        sector_id: SectorId,
+    ) -> Result<Option<JobState>, Error>;
 }
 
 pub struct SealingJobManagerHttpClient {
@@ -285,6 +305,7 @@ pub struct SealingJobManagerHttpClient {
     get_job_output_uri: String,
     get_job_input_uri: String,
     fail_job_uri: String,
+    get_job_state_uri: String,
 }
 
 impl SealingJobManagerHttpClient {
@@ -296,7 +317,8 @@ impl SealingJobManagerHttpClient {
             submit_output_uri: uri.clone() + SUBMIT_OUTPUT_URL,
             get_job_output_uri: uri.clone() + GET_OUTPUT_URL,
             get_job_input_uri: uri.clone() + GET_JOB_INPUT_URI,
-            fail_job_uri: uri + FAIL_JOB_URL,
+            fail_job_uri: uri.clone() + FAIL_JOB_URL,
+            get_job_state_uri: uri + GET_JOB_STATE_URL,
         }
     }
 }
@@ -547,5 +569,51 @@ impl SealingJobManagerClient for SealingJobManagerHttpClient {
         );
 
         Ok(())
+    }
+
+    async fn get_job_state<SealingJobT: SealingJob + 'static>(
+        &self,
+        storage_provider_id: StorageProviderId,
+        sector_id: SectorId,
+    ) -> Result<Option<JobState>, Error> {
+        let job_type = SealingJobT::job_type().to_string();
+        let uri = self
+            .get_job_state_uri
+            .replace(":storage_provider_id", &storage_provider_id.0.to_string())
+            .replace(":sector_id", &sector_id.0.to_string())
+            .replace(":job_type", job_type.as_str());
+
+        tracing::debug!(
+            "Requesting {} state for storage_provider_id: {}, sector_id: {}",
+            job_type,
+            storage_provider_id.0,
+            sector_id.0
+        );
+        let response = self
+            .http_client
+            .get(uri)
+            .header(http::header::CONTENT_TYPE, "application/json")
+            .send()
+            .await?;
+
+        if response.status() == StatusCode::NO_CONTENT {
+            return Ok(None);
+        }
+
+        if response.status() != StatusCode::OK {
+            let resp = response.text().await?;
+            tracing::error!("Error while fetching state: {}", &resp);
+            return Err(Error::GetState(resp));
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct Response {
+            pub state: JobState,
+        }
+
+        let response: Response = response.json().await?;
+        tracing::trace!("get_state response {:?}", response);
+
+        Ok(Some(response.state))
     }
 }
