@@ -247,7 +247,7 @@ pub enum JobState {
 
 #[automock]
 #[async_trait]
-pub trait SealingJobManagerClient {
+pub trait SealingJobManagerClient: Clone + Send + Sync {
     async fn add_job<SealingJobT: SealingJob + Into<JobHttp> + 'static>(
         &self,
         job: SealingJobT,
@@ -297,6 +297,13 @@ pub trait SealingJobManagerClient {
     ) -> Result<Option<JobState>, Error>;
 }
 
+impl Clone for MockSealingJobManagerClient {
+    fn clone(&self) -> Self {
+        todo!()
+    }
+}
+
+#[derive(Clone)]
 pub struct SealingJobManagerHttpClient {
     http_client: reqwest::Client,
     add_jobs_uri: String,
