@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use filecoin_spec::{SectorId, StorageProviderId};
+use filecoin_spec::{RegisteredSealProof, SectorId, StorageProviderId};
 use hyper::{http, StatusCode};
 use job::{
     sealing::{
@@ -15,6 +15,7 @@ pub const GET_JOBS_URL: &str = "/job/:count/:job_type";
 pub const GET_ALL_JOBS_URL: &str = "/job/all/:storage_provider_id/:job_type";
 pub const GET_JOB_INPUT_URI: &str = "/job/input/:storage_provider_id/:sector_id/:job_type";
 pub const GET_JOB_STATE_URL: &str = "/job/state/:storage_provider_id/:sector_id/:job_type";
+pub const FILTER_JOBS_URL: &str = "/job/filter/:job_type";
 
 pub const SUBMIT_OUTPUT_URL: &str = "/job/output";
 pub const GET_OUTPUT_URL: &str = "/job/output/:storage_provider_id/:sector_id/:job_type";
@@ -245,6 +246,15 @@ pub enum JobState {
     Failed,
 }
 
+#[derive(Serialize, Deserialize, Default, PartialEq, Debug, Clone)]
+pub struct Filter {
+    pub storage_provider_id: Option<StorageProviderId>,
+    pub sector_id: Option<SectorId>,
+    pub state: Option<JobState>,
+    pub limit: Option<u32>,
+    pub registered_proof: Option<RegisteredSealProof>,
+}
+
 #[automock]
 #[async_trait]
 pub trait SealingJobManagerClient: Clone + Send + Sync {
@@ -256,6 +266,11 @@ pub trait SealingJobManagerClient: Clone + Send + Sync {
     async fn request_jobs<SealingJobT: SealingJob + From<JobHttp> + 'static>(
         &self,
         count: usize,
+    ) -> Result<Vec<SealingJobT>, Error>;
+
+    async fn filter_jobs<SealingJobT: SealingJob + From<JobHttp> + 'static>(
+        &self,
+        filter: Filter,
     ) -> Result<Vec<SealingJobT>, Error>;
 
     async fn submit_job_output<SealingJobT: SealingJob + 'static>(
@@ -308,6 +323,7 @@ pub struct SealingJobManagerHttpClient {
     http_client: reqwest::Client,
     add_jobs_uri: String,
     request_jobs_uri: String,
+    filter_jobs_uri: String,
     submit_output_uri: String,
     get_job_output_uri: String,
     get_job_input_uri: String,
@@ -321,6 +337,7 @@ impl SealingJobManagerHttpClient {
             http_client: reqwest::Client::new(),
             add_jobs_uri: uri.clone() + ADD_JOBS_URL,
             request_jobs_uri: uri.clone() + GET_JOBS_URL,
+            filter_jobs_uri: uri.clone() + FILTER_JOBS_URL,
             submit_output_uri: uri.clone() + SUBMIT_OUTPUT_URL,
             get_job_output_uri: uri.clone() + GET_OUTPUT_URL,
             get_job_input_uri: uri.clone() + GET_JOB_INPUT_URI,
@@ -391,6 +408,42 @@ impl SealingJobManagerClient for SealingJobManagerHttpClient {
 
         let response: GetSealingJobsResponse = response.json().await?;
         tracing::trace!("request_jobs response {:?}", response);
+
+        let jobs: Vec<SealingJobT> = response.jobs.into_iter().map(|job| job.into()).collect();
+        Ok(jobs)
+    }
+
+    async fn filter_jobs<SealingJobT: SealingJob + From<JobHttp> + 'static>(
+        &self,
+        filter: Filter,
+    ) -> Result<Vec<SealingJobT>, Error> {
+        let job_type = SealingJobT::job_type().to_string();
+        let uri = self.filter_jobs_uri.replace(":job_type", job_type.as_str());
+
+        tracing::debug!("Filtering {} jobs using filter {:?}", job_type, filter);
+
+        #[derive(Serialize)]
+        struct FilterJobsRequest {
+            filter: Filter,
+        }
+
+        let request = FilterJobsRequest { filter };
+        let response = self
+            .http_client
+            .get(uri)
+            .header(http::header::CONTENT_TYPE, "application/json")
+            .body(serde_json::to_string(&request)?)
+            .send()
+            .await?;
+
+        if response.status() != StatusCode::OK {
+            let resp = response.text().await?;
+            tracing::error!("Error while filtering jobs: {}", &resp);
+            return Err(Error::FetchJobs(resp));
+        }
+
+        let response: GetSealingJobsResponse = response.json().await?;
+        tracing::trace!("filter_jobs response {:?}", response);
 
         let jobs: Vec<SealingJobT> = response.jobs.into_iter().map(|job| job.into()).collect();
         Ok(jobs)

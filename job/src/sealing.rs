@@ -65,6 +65,10 @@ impl SealingJob for PC1 {
     fn storage_provider_id(&self) -> StorageProviderId {
         self.input.storage_provider_id
     }
+
+    fn registered_proof(&self) -> RegisteredSealProof {
+        self.input.registered_proof
+    }
 }
 
 // ****** PC2 **********
@@ -98,6 +102,7 @@ pub struct PC2Input {
     pub pc1_output: PC1Output,
     pub sector_id: SectorId,
     pub storage_provider_id: StorageProviderId,
+    pub registered_proof: RegisteredSealProof,
 }
 
 impl Job for PC2 {
@@ -120,6 +125,10 @@ impl SealingJob for PC2 {
 
     fn storage_provider_id(&self) -> StorageProviderId {
         self.input.storage_provider_id
+    }
+
+    fn registered_proof(&self) -> RegisteredSealProof {
+        self.input.registered_proof
     }
 }
 
@@ -169,6 +178,10 @@ impl SealingJob for PC {
     fn storage_provider_id(&self) -> StorageProviderId {
         self.input.storage_provider_id
     }
+
+    fn registered_proof(&self) -> RegisteredSealProof {
+        self.input.registered_proof
+    }
 }
 
 // ****** C1 **********
@@ -206,6 +219,7 @@ pub struct C1Input {
     pub ticket: Ticket,
     pub seed: Ticket,
     pub piece_infos: Vec<PieceInfo>,
+    pub registered_proof: RegisteredSealProof,
 }
 
 impl Job for C1 {
@@ -228,6 +242,10 @@ impl SealingJob for C1 {
 
     fn storage_provider_id(&self) -> StorageProviderId {
         self.input.storage_provider_id
+    }
+
+    fn registered_proof(&self) -> RegisteredSealProof {
+        self.input.registered_proof
     }
 }
 
@@ -268,6 +286,7 @@ impl From<Vec<u8>> for C2Output {
 pub trait SealingJob: Job + Send + Sync {
     fn sector_id(&self) -> SectorId;
     fn storage_provider_id(&self) -> StorageProviderId;
+    fn registered_proof(&self) -> RegisteredSealProof;
 }
 
 impl Job for C2 {
@@ -289,6 +308,10 @@ impl SealingJob for C2 {
     }
     fn storage_provider_id(&self) -> StorageProviderId {
         self.input.storage_provider_id
+    }
+
+    fn registered_proof(&self) -> RegisteredSealProof {
+        self.input.registered_proof
     }
 }
 
