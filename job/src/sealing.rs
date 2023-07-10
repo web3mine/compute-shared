@@ -3,11 +3,19 @@ use filecoin_spec::{
     ChainEpoch, PieceInfo, RegisteredSealProof, SectorId, StorageProviderId, Ticket,
 };
 use serde::{Deserialize, Serialize};
+use serde_variant::to_variant_name;
 use serde_with::{
     base64::{Base64, Standard},
     formats::Padded,
     serde_as,
 };
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct Metadata {
+    pub storage_provider_id: StorageProviderId,
+    pub sector_id: SectorId,
+    pub registered_proof: RegisteredSealProof,
+}
 
 // ****** PC1 **********
 
@@ -47,6 +55,7 @@ impl From<Vec<u8>> for PC1Output {
 impl Job for PC1 {
     type Input = PC1Input;
     type Output = PC1Output;
+    type Metadata = Metadata;
 
     fn job_type() -> JobType {
         JobType::PC1
@@ -54,6 +63,24 @@ impl Job for PC1 {
 
     fn into_input(self) -> Self::Input {
         self.input
+    }
+
+    fn metadata(&self) -> Self::Metadata {
+        Metadata {
+            storage_provider_id: self.storage_provider_id(),
+            sector_id: self.sector_id(),
+            registered_proof: self.registered_proof(),
+        }
+    }
+
+    fn domain_id(&self) -> String {
+        format!(
+            "{}-{}-{}-{}",
+            self.storage_provider_id().0,
+            self.sector_id().0,
+            to_variant_name(&self.registered_proof()).unwrap(),
+            Self::job_type()
+        )
     }
 }
 
@@ -108,6 +135,7 @@ pub struct PC2Input {
 impl Job for PC2 {
     type Input = PC2Input;
     type Output = PC2Output;
+    type Metadata = Metadata;
 
     fn job_type() -> JobType {
         JobType::PC2
@@ -115,6 +143,24 @@ impl Job for PC2 {
 
     fn into_input(self) -> Self::Input {
         self.input
+    }
+
+    fn metadata(&self) -> Self::Metadata {
+        Metadata {
+            storage_provider_id: self.storage_provider_id(),
+            sector_id: self.sector_id(),
+            registered_proof: self.registered_proof(),
+        }
+    }
+
+    fn domain_id(&self) -> String {
+        format!(
+            "{}-{}-{}-{}",
+            self.storage_provider_id().0,
+            self.sector_id().0,
+            to_variant_name(&self.registered_proof()).unwrap(),
+            Self::job_type()
+        )
     }
 }
 
@@ -160,6 +206,7 @@ impl From<Vec<u8>> for PCOutput {
 impl Job for PC {
     type Input = PC1Input;
     type Output = PCOutput;
+    type Metadata = Metadata;
 
     fn job_type() -> JobType {
         JobType::PC
@@ -167,6 +214,24 @@ impl Job for PC {
 
     fn into_input(self) -> Self::Input {
         self.input
+    }
+
+    fn metadata(&self) -> Self::Metadata {
+        Metadata {
+            storage_provider_id: self.storage_provider_id(),
+            sector_id: self.sector_id(),
+            registered_proof: self.registered_proof(),
+        }
+    }
+
+    fn domain_id(&self) -> String {
+        format!(
+            "{}-{}-{}-{}",
+            self.storage_provider_id().0,
+            self.sector_id().0,
+            to_variant_name(&self.registered_proof()).unwrap(),
+            Self::job_type()
+        )
     }
 }
 
@@ -225,6 +290,7 @@ pub struct C1Input {
 impl Job for C1 {
     type Input = C1Input;
     type Output = C1Output;
+    type Metadata = Metadata;
 
     fn job_type() -> JobType {
         JobType::C1
@@ -232,6 +298,24 @@ impl Job for C1 {
 
     fn into_input(self) -> Self::Input {
         self.input
+    }
+
+    fn metadata(&self) -> Self::Metadata {
+        Metadata {
+            storage_provider_id: self.storage_provider_id(),
+            sector_id: self.sector_id(),
+            registered_proof: self.registered_proof(),
+        }
+    }
+
+    fn domain_id(&self) -> String {
+        format!(
+            "{}-{}-{}-{}",
+            self.storage_provider_id().0,
+            self.sector_id().0,
+            to_variant_name(&self.registered_proof()).unwrap(),
+            Self::job_type()
+        )
     }
 }
 
@@ -292,6 +376,7 @@ pub trait SealingJob: Job + Send + Sync {
 impl Job for C2 {
     type Input = C2Input;
     type Output = C2Output;
+    type Metadata = Metadata;
 
     fn job_type() -> JobType {
         JobType::C2
@@ -299,6 +384,24 @@ impl Job for C2 {
 
     fn into_input(self) -> Self::Input {
         self.input
+    }
+
+    fn metadata(&self) -> Self::Metadata {
+        Metadata {
+            storage_provider_id: self.storage_provider_id(),
+            sector_id: self.sector_id(),
+            registered_proof: self.registered_proof(),
+        }
+    }
+
+    fn domain_id(&self) -> String {
+        format!(
+            "{}-{}-{}-{}",
+            self.storage_provider_id().0,
+            self.sector_id().0,
+            to_variant_name(&self.registered_proof()).unwrap(),
+            Self::job_type()
+        )
     }
 }
 

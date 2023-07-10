@@ -53,10 +53,13 @@ impl From<JobType> for u8 {
     }
 }
 
-pub trait Job: Serialize + DeserializeOwned + Send {
+pub trait Job: Serialize + DeserializeOwned + Send + Sync {
     type Input: Send + Sync + Serialize + DeserializeOwned;
     type Output: Send + Sync + Serialize + DeserializeOwned + AsRef<[u8]> + From<Vec<u8>>;
+    type Metadata: Send + Sync + Serialize + DeserializeOwned;
 
     fn job_type() -> JobType;
     fn into_input(self) -> Self::Input;
+    fn metadata(&self) -> Self::Metadata;
+    fn domain_id(&self) -> String;
 }
